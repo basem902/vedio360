@@ -217,6 +217,13 @@ class _Video360ViewerPageState extends State<Video360ViewerPage> {
             this.animate();
             
             console.log('360 Viewer initialized successfully');
+            
+            // رسالة ترحيب للميزات الصوتية الجديدة
+            if (this.spatialAudioEnabled) {
+              console.log('%c🎵 ميزات الصوت المكاني متاحة!', 'color: #4CAF50; font-size: 14px; font-weight: bold;');
+              console.log('استخدم Ctrl+S لفتح إعدادات الصوت');
+              console.log('استخدم Ctrl+X لتبديل الصوت المكاني');
+            }
             return true;
           },
           
@@ -229,7 +236,7 @@ class _Video360ViewerPageState extends State<Video360ViewerPage> {
             if (welcomeScreen) welcomeScreen.style.display = 'none';
             if (viewerArea) viewerArea.style.display = 'block';
             
-            // إنشاء عنصر الفيديو
+            // إنشاء عنصر الفيديو مع دعم Spatial Audio
             this.video = document.createElement('video');
             this.video.src = videoUrl;
             this.video.loop = true;
@@ -237,6 +244,9 @@ class _Video360ViewerPageState extends State<Video360ViewerPage> {
             this.video.volume = 0.7;
             this.video.crossOrigin = 'anonymous';
             this.video.autoplay = true;
+            
+            // إعداد Spatial Audio
+            this.setupSpatialAudio();
             
             const self = this;
             this.video.addEventListener('loadeddata', function() {
@@ -538,7 +548,8 @@ class _Video360ViewerPageState extends State<Video360ViewerPage> {
               'الإطارات: ' + (typeof fps === 'number' ? fps : fps) + '<br>' +
               'المعالج: ' + (this.renderer.capabilities.isWebGL2 ? 'WebGL2' : 'WebGL1') + '<br>' +
               'الذاكرة: ' + (memoryInfo.textures || 0) + ' textures<br>' +
-              'FPS: ' + Math.round(1000 / (performance.now() - (this.lastFrameTime || performance.now())));
+              'FPS: ' + Math.round(1000 / (performance.now() - (this.lastFrameTime || performance.now()))) + '<br>' +
+              '🎵 صوت مكاني: ' + (this.spatialAudioEnabled && this.spatialAudioActive ? '✅ مفعل' : '❌ معطل');
             
             this.lastFrameTime = performance.now();
           },
@@ -569,6 +580,67 @@ class _Video360ViewerPageState extends State<Video360ViewerPage> {
             }
             
             console.log('Performance optimization at frame:', this.frameCount);
+          },
+          
+          setupSpatialAudio: function() {
+            try {
+              // إنشاء Audio Context للصوت المكاني
+              this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+              
+              // إنشاء مصدر الصوت من الفيديو
+              this.audioSource = this.audioContext.createMediaElementSource(this.video);
+              
+              // إنشاء Panner Node للصوت ثلاثي الأبعاد
+              this.pannerNode = this.audioContext.createPanner();
+              this.pannerNode.panningModel = 'HRTF'; // Head-Related Transfer Function
+              this.pannerNode.distanceModel = 'inverse';
+              this.pannerNode.refDistance = 1;
+              this.pannerNode.maxDistance = 10000;
+              this.pannerNode.rolloffFactor = 1;
+              this.pannerNode.coneInnerAngle = 360;
+              this.pannerNode.coneOuterAngle = 0;
+              this.pannerNode.coneOuterGain = 0;
+              
+              // إنشاء Gain Node للتحكم في مستوى الصوت
+              this.gainNode = this.audioContext.createGain();
+              this.gainNode.gain.value = 0.7;
+              
+              // إنشاء Analyser للتحليل الطيفي
+              this.analyserNode = this.audioContext.createAnalyser();
+              this.analyserNode.fftSize = 256;
+              this.audioDataArray = new Uint8Array(this.analyserNode.frequencyBinCount);
+              
+              // ربط العقد
+              this.audioSource.connect(this.pannerNode);
+              this.pannerNode.connect(this.gainNode);
+              this.gainNode.connect(this.analyserNode);
+              this.analyserNode.connect(this.audioContext.destination);
+              
+              // تعيين موقع المستمع
+              if (this.audioContext.listener.positionX) {
+                this.audioContext.listener.positionX.value = 0;
+                this.audioContext.listener.positionY.value = 0;
+                this.audioContext.listener.positionZ.value = 0;
+                this.audioContext.listener.forwardX.value = 0;
+                this.audioContext.listener.forwardY.value = 0;
+                this.audioContext.listener.forwardZ.value = -1;
+                this.audioContext.listener.upX.value = 0;
+                this.audioContext.listener.upY.value = 1;
+                this.audioContext.listener.upZ.value = 0;
+              }
+              
+              console.log('Spatial Audio initialized successfully');
+              this.spatialAudioEnabled = true;
+              this.spatialAudioActive = true; // تفعيل الصوت المكاني افتراضياً
+              
+              // إعداد المعادل والبيئة الصوتية
+              this.setupEqualizer();
+              this.setAudioEnvironment('room'); // بيئة غرفة افتراضية
+              
+            } catch (error) {
+              console.log('Spatial Audio not supported:', error);
+              this.spatialAudioEnabled = false;
+            }
           },
           
           setQualityMode: function(mode) {
@@ -648,6 +720,106 @@ class _Video360ViewerPageState extends State<Video360ViewerPage> {
             console.log('Video flipped to state:', flipState);
           },
           
+          toggleSpatialAudio: function() {
+            if (!this.spatialAudioEnabled) {
+              console.log('Spatial Audio not available');
+              return;
+            }
+            
+            this.spatialAudioActive = !this.spatialAudioActive;
+            
+            if (this.spatialAudioActive) {
+              // تفعيل الصوت المكاني
+              if (this.audioContext.state === 'suspended') {
+                this.audioContext.resume();
+              }
+              console.log('Spatial Audio enabled');
+            } else {
+              // إيقاف الصوت المكاني - العودة للصوت العادي
+              if (this.pannerNode && this.pannerNode.positionX) {
+                this.pannerNode.positionX.value = 0;
+                this.pannerNode.positionY.value = 0;
+                this.pannerNode.positionZ.value = 0;
+              }
+              console.log('Spatial Audio disabled');
+            }
+          },
+          
+          // إعدادات صوتية متقدمة
+          setAudioEnvironment: function(environment) {
+            if (!this.spatialAudioEnabled || !this.audioContext) return;
+            
+            // إنشاء Convolver للصدى البيئي
+            if (!this.convolverNode) {
+              this.convolverNode = this.audioContext.createConvolver();
+              this.dryGainNode = this.audioContext.createGain();
+              this.wetGainNode = this.audioContext.createGain();
+              
+              // إعادة توصيل العقد
+              this.gainNode.disconnect();
+              this.gainNode.connect(this.dryGainNode);
+              this.gainNode.connect(this.convolverNode);
+              this.convolverNode.connect(this.wetGainNode);
+              this.dryGainNode.connect(this.analyserNode);
+              this.wetGainNode.connect(this.analyserNode);
+            }
+            
+            // تطبيق إعدادات البيئة
+            switch(environment) {
+              case 'hall': // قاعة كبيرة
+                this.dryGainNode.gain.value = 0.6;
+                this.wetGainNode.gain.value = 0.4;
+                console.log('Audio environment: Concert Hall');
+                break;
+              case 'room': // غرفة عادية
+                this.dryGainNode.gain.value = 0.8;
+                this.wetGainNode.gain.value = 0.2;
+                console.log('Audio environment: Room');
+                break;
+              case 'outdoor': // في الهواء الطلق
+                this.dryGainNode.gain.value = 1.0;
+                this.wetGainNode.gain.value = 0.0;
+                console.log('Audio environment: Outdoor');
+                break;
+              default: // عادي
+                this.dryGainNode.gain.value = 1.0;
+                this.wetGainNode.gain.value = 0.0;
+            }
+          },
+          
+          // معادل الصوت
+          setupEqualizer: function() {
+            if (!this.spatialAudioEnabled || !this.audioContext) return;
+            
+            // إنشاء مرشحات التردد
+            this.eqFilters = [];
+            const frequencies = [60, 170, 350, 1000, 3500, 10000]; // Hz
+            
+            frequencies.forEach((freq, index) => {
+              const filter = this.audioContext.createBiquadFilter();
+              filter.type = index === 0 ? 'lowshelf' : 
+                           index === frequencies.length - 1 ? 'highshelf' : 'peaking';
+              filter.frequency.value = freq;
+              filter.Q.value = 1;
+              filter.gain.value = 0; // dB
+              
+              this.eqFilters.push(filter);
+            });
+            
+            // ربط المرشحات
+            if (this.eqFilters.length > 0) {
+              this.pannerNode.disconnect();
+              this.pannerNode.connect(this.eqFilters[0]);
+              
+              for (let i = 0; i < this.eqFilters.length - 1; i++) {
+                this.eqFilters[i].connect(this.eqFilters[i + 1]);
+              }
+              
+              this.eqFilters[this.eqFilters.length - 1].connect(this.gainNode);
+              console.log('Audio equalizer initialized');
+            }
+          },
+          
           showPlayButton: function() {
             const playButton = document.createElement('button');
             playButton.innerHTML = '▶️ تشغيل';
@@ -671,6 +843,60 @@ class _Video360ViewerPageState extends State<Video360ViewerPage> {
             };
             
             document.body.appendChild(playButton);
+          },
+          
+          showAudioControls: function() {
+            if (!this.spatialAudioEnabled) {
+              console.log('Spatial Audio not available');
+              return;
+            }
+            
+            // إنشاء لوحة التحكم الصوتي
+            const audioPanel = document.createElement('div');
+            audioPanel.id = 'audio-controls-panel';
+            audioPanel.style.position = 'fixed';
+            audioPanel.style.top = '10px';
+            audioPanel.style.right = '10px';
+            audioPanel.style.backgroundColor = 'rgba(0,0,0,0.8)';
+            audioPanel.style.color = 'white';
+            audioPanel.style.padding = '15px';
+            audioPanel.style.borderRadius = '10px';
+            audioPanel.style.zIndex = '3000';
+            audioPanel.style.minWidth = '200px';
+            audioPanel.style.fontFamily = 'Arial, sans-serif';
+            
+            audioPanel.innerHTML = 
+              '<h3 style="margin-top: 0; color: #2196F3;">🎵 التحكم الصوتي</h3>' +
+              '<div style="margin: 10px 0;">' +
+                '<label>البيئة الصوتية:</label><br>' +
+                '<select id="audio-env" style="width: 100%; padding: 5px; margin-top: 5px;">' +
+                  '<option value="outdoor">هواء طلق 🌤️</option>' +
+                  '<option value="room" selected>غرفة 🏠</option>' +
+                  '<option value="hall">قاعة كبيرة 🏛️</option>' +
+                '</select>' +
+              '</div>' +
+              '<div style="margin: 10px 0;">' +
+                '<label>الصوت المكاني:</label><br>' +
+                '<button id="spatial-toggle" style="width: 100%; padding: 8px; margin-top: 5px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">تفعيل ✅</button>' +
+              '</div>' +
+              '<button onclick="document.getElementById(\\'audio-controls-panel\\').remove()" style="width: 100%; padding: 8px; margin-top: 10px; background: #f44336; color: white; border: none; border-radius: 5px; cursor: pointer;">إغلاق</button>';
+            
+            document.body.appendChild(audioPanel);
+            
+            // ربط الأحداث
+            const envSelect = document.getElementById('audio-env');
+            const spatialToggle = document.getElementById('spatial-toggle');
+            const self = this;
+            
+            envSelect.onchange = function() {
+              self.setAudioEnvironment(this.value);
+            };
+            
+            spatialToggle.onclick = function() {
+              self.toggleSpatialAudio();
+              this.textContent = self.spatialAudioActive ? 'تفعيل ✅' : 'إيقاف ❌';
+              this.style.backgroundColor = self.spatialAudioActive ? '#4CAF50' : '#f44336';
+            };
           },
           
           addEventListeners: function() {
@@ -707,6 +933,24 @@ class _Video360ViewerPageState extends State<Video360ViewerPage> {
               self.camera.updateProjectionMatrix();
               self.renderer.setSize(window.innerWidth, window.innerHeight);
             });
+            
+            // اختصارات لوحة المفاتيح للصوت
+            window.addEventListener('keydown', function(event) {
+              switch(event.key.toLowerCase()) {
+                case 's': // فتح إعدادات الصوت
+                  if (event.ctrlKey) {
+                    event.preventDefault();
+                    self.showAudioControls();
+                  }
+                  break;
+                case 'x': // تبديل الصوت المكاني
+                  if (event.ctrlKey) {
+                    event.preventDefault();
+                    self.toggleSpatialAudio();
+                  }
+                  break;
+              }
+            });
           },
           
           update: function() {
@@ -723,6 +967,61 @@ class _Video360ViewerPageState extends State<Video360ViewerPage> {
             this.camera.lookAt(x, y, z);
           },
           
+          updateSpatialAudio: function() {
+            if (!this.spatialAudioEnabled || !this.spatialAudioActive || !this.pannerNode || !this.audioContext.listener) return;
+            
+            try {
+              // حساب اتجاه الكاميرا
+              const phi = (90 - this.lat) * Math.PI / 180;
+              const theta = this.lon * Math.PI / 180;
+              
+              // حساب موقع مصدر الصوت بناء على اتجاه النظر
+              const distance = 5; // مسافة مصدر الصوت
+              const sourceX = distance * Math.sin(phi) * Math.cos(theta);
+              const sourceY = distance * Math.cos(phi);
+              const sourceZ = distance * Math.sin(phi) * Math.sin(theta);
+              
+              // تحديث موقع مصدر الصوت
+              if (this.pannerNode.positionX) {
+                this.pannerNode.positionX.value = sourceX;
+                this.pannerNode.positionY.value = sourceY;
+                this.pannerNode.positionZ.value = sourceZ;
+              }
+              
+              // تحديث اتجاه المستمع (الكاميرا)
+              if (this.audioContext.listener.forwardX) {
+                const forwardX = Math.sin(phi) * Math.cos(theta);
+                const forwardY = Math.cos(phi);
+                const forwardZ = Math.sin(phi) * Math.sin(theta);
+                
+                this.audioContext.listener.forwardX.value = forwardX;
+                this.audioContext.listener.forwardY.value = forwardY;
+                this.audioContext.listener.forwardZ.value = forwardZ;
+              }
+              
+              // تحليل الصوت للتأثيرات البصرية
+              if (this.analyserNode) {
+                this.analyserNode.getByteFrequencyData(this.audioDataArray);
+                
+                // حساب مستوى الصوت العام
+                let sum = 0;
+                for (let i = 0; i < this.audioDataArray.length; i++) {
+                  sum += this.audioDataArray[i];
+                }
+                const average = sum / this.audioDataArray.length;
+                
+                // تأثير بصري بسيط على الكرة حسب مستوى الصوت
+                if (this.sphere && average > 50) {
+                  const scale = 1 + (average / 1000);
+                  this.sphere.scale.setScalar(scale);
+                }
+              }
+              
+            } catch (error) {
+              console.log('Error updating spatial audio:', error);
+            }
+          },
+          
           animate: function() {
             const self = this;
             requestAnimationFrame(function() {
@@ -730,6 +1029,9 @@ class _Video360ViewerPageState extends State<Video360ViewerPage> {
             });
             
             this.update();
+            
+            // تحديث الصوت المكاني
+            this.updateSpatialAudio();
             
             // تحسين الأداء - تنظيف الذاكرة كل 100 إطار
             if (!this.frameCount) this.frameCount = 0;
