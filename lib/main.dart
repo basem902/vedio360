@@ -161,6 +161,9 @@ class _Video360ViewerPageState extends State<Video360ViewerPage> {
             // إعداد دعم VR
             this.setupVRSupport();
             
+            // إعداد الذكاء الاصطناعي
+            this.setupAI();
+            
             // إنشاء الرندر مع تحسينات متقدمة للدقة العالية
             const canvas = document.createElement('canvas');
             const context = canvas.getContext('webgl2') || canvas.getContext('webgl');
@@ -235,6 +238,13 @@ class _Video360ViewerPageState extends State<Video360ViewerPage> {
               if (this.arSupported) console.log('استخدم Ctrl+A لدخول وضع AR');
               if (this.gyroscopeSupported) console.log('استخدم Ctrl+G لتفعيل الجايروسكوب');
             }
+            
+            // رسالة ترحيب للذكاء الاصطناعي
+            if (this.aiEnabled) {
+              console.log('%c🤖 ميزات الذكاء الاصطناعي متاحة!', 'color: #FF6B35; font-size: 14px; font-weight: bold;');
+              console.log('استخدم Ctrl+I لفتح لوحة التحليل الذكي');
+              console.log('التحليل التلقائي: السطوع، الحركة، الصوت، النوع الموسيقي');
+            }
             return true;
           },
           
@@ -267,6 +277,8 @@ class _Video360ViewerPageState extends State<Video360ViewerPage> {
               
               self.video.play().then(() => {
                 console.log('Video playing');
+                // إعداد شريط التقدم
+                self.setupProgressBarEvents();
               }).catch(e => {
                 console.log('Autoplay prevented');
                 self.showPlayButton();
@@ -497,20 +509,27 @@ class _Video360ViewerPageState extends State<Video360ViewerPage> {
             qualityPanel.style.position = 'fixed';
             qualityPanel.style.top = '20px';
             qualityPanel.style.right = '20px';
-            qualityPanel.style.backgroundColor = 'rgba(0,0,0,0.8)';
+            qualityPanel.style.backgroundColor = 'rgba(0,0,0,0.9)';
             qualityPanel.style.color = 'white';
-            qualityPanel.style.padding = '10px 15px';
-            qualityPanel.style.borderRadius = '10px';
-            qualityPanel.style.fontSize = '12px';
-            qualityPanel.style.fontFamily = 'monospace';
+            qualityPanel.style.padding = '15px 20px';
+            qualityPanel.style.borderRadius = '15px';
+            qualityPanel.style.fontSize = '13px';
+            qualityPanel.style.fontFamily = 'Arial, sans-serif';
             qualityPanel.style.zIndex = '3000';
-            qualityPanel.style.minWidth = '200px';
+            qualityPanel.style.minWidth = '280px';
+            qualityPanel.style.backdropFilter = 'blur(15px)';
+            qualityPanel.style.border = '1px solid rgba(255,255,255,0.2)';
+            qualityPanel.style.boxShadow = '0 10px 30px rgba(0,0,0,0.4)';
+            qualityPanel.style.transition = 'all 0.3s ease';
             
             const title = document.createElement('div');
-            title.textContent = '📊 معلومات الجودة';
+            title.innerHTML = '📊 معلومات الجودة <button onclick="window.Video360Viewer.toggleQualityPanel()" style="float: right; background: rgba(255,255,255,0.2); border: none; color: white; padding: 2px 8px; border-radius: 5px; cursor: pointer; font-size: 10px;">إخفاء</button>';
             title.style.fontWeight = 'bold';
-            title.style.marginBottom = '5px';
+            title.style.marginBottom = '10px';
             title.style.color = '#2196F3';
+            title.style.display = 'flex';
+            title.style.justifyContent = 'space-between';
+            title.style.alignItems = 'center';
             
             const info = document.createElement('div');
             info.id = 'quality-info';
@@ -563,7 +582,9 @@ class _Video360ViewerPageState extends State<Video360ViewerPage> {
               '🎵 صوت مكاني: ' + (this.spatialAudioEnabled && this.spatialAudioActive ? '✅ مفعل' : '❌ معطل') + '<br>' +
               '🥽 VR Support: ' + (this.vrSupported ? '✅ متاح' : '❌ غير متاح') + '<br>' +
               '📱 AR Support: ' + (this.arSupported ? '✅ متاح' : '❌ غير متاح') + '<br>' +
-              '🧭 Gyroscope: ' + (this.gyroscopeSupported ? (this.gyroscopeActive ? '✅ مفعل' : '⏸️ متاح') : '❌ غير متاح');
+              '🧭 Gyroscope: ' + (this.gyroscopeSupported ? (this.gyroscopeActive ? '✅ مفعل' : '⏸️ متاح') : '❌ غير متاح') + '<br>' +
+              '🤖 AI Analysis: ' + (this.aiEnabled ? '✅ مفعل' : '❌ معطل') + '<br>' +
+              '🎯 Auto Optimization: ' + (this.autoOptimization ? '✅ مفعل' : '❌ معطل');
             
             this.lastFrameTime = performance.now();
           },
@@ -981,6 +1002,12 @@ class _Video360ViewerPageState extends State<Video360ViewerPage> {
                     self.enterAR();
                   }
                   break;
+                case 'i': // فتح لوحة الذكاء الاصطناعي
+                  if (event.ctrlKey) {
+                    event.preventDefault();
+                    self.showAIPanel();
+                  }
+                  break;
               }
             });
           },
@@ -1114,23 +1141,45 @@ class _Video360ViewerPageState extends State<Video360ViewerPage> {
             
             const vrButton = document.createElement('button');
             vrButton.id = 'vr-button';
-            vrButton.innerHTML = '🥽 VR Mode';
+            vrButton.innerHTML = '🥽<br><span style="font-size: 12px;">VR Mode</span>';
             vrButton.style.position = 'fixed';
-            vrButton.style.bottom = '80px';
+            vrButton.style.bottom = '120px';
             vrButton.style.right = '20px';
-            vrButton.style.backgroundColor = 'rgba(0,150,255,0.9)';
+            vrButton.style.backgroundColor = 'rgba(0,150,255,0.95)';
             vrButton.style.color = 'white';
-            vrButton.style.padding = '12px 20px';
-            vrButton.style.borderRadius = '25px';
-            vrButton.style.fontSize = '16px';
+            vrButton.style.padding = '15px';
+            vrButton.style.borderRadius = '50%';
+            vrButton.style.fontSize = '20px';
             vrButton.style.cursor = 'pointer';
-            vrButton.style.border = 'none';
+            vrButton.style.border = '2px solid rgba(255,255,255,0.3)';
             vrButton.style.zIndex = '4000';
             vrButton.style.fontFamily = 'Arial, sans-serif';
-            vrButton.style.boxShadow = '0 4px 8px rgba(0,0,0,0.3)';
+            vrButton.style.boxShadow = '0 6px 20px rgba(0,150,255,0.4)';
+            vrButton.style.width = '70px';
+            vrButton.style.height = '70px';
+            vrButton.style.display = 'flex';
+            vrButton.style.flexDirection = 'column';
+            vrButton.style.alignItems = 'center';
+            vrButton.style.justifyContent = 'center';
+            vrButton.style.transition = 'all 0.3s ease';
+            vrButton.style.backdropFilter = 'blur(10px)';
+            
+            // تأثيرات التفاعل
+            vrButton.onmouseenter = function() {
+              this.style.transform = 'scale(1.1)';
+              this.style.boxShadow = '0 8px 25px rgba(0,150,255,0.6)';
+            };
+            vrButton.onmouseleave = function() {
+              this.style.transform = 'scale(1)';
+              this.style.boxShadow = '0 6px 20px rgba(0,150,255,0.4)';
+            };
             
             const self = this;
             vrButton.onclick = function() {
+              this.style.transform = 'scale(0.95)';
+              setTimeout(() => {
+                this.style.transform = 'scale(1.1)';
+              }, 100);
               self.enterVR();
             };
             
@@ -1142,23 +1191,45 @@ class _Video360ViewerPageState extends State<Video360ViewerPage> {
             
             const arButton = document.createElement('button');
             arButton.id = 'ar-button';
-            arButton.innerHTML = '📱 AR Mode';
+            arButton.innerHTML = '📱<br><span style="font-size: 12px;">AR Mode</span>';
             arButton.style.position = 'fixed';
-            arButton.style.bottom = '140px';
+            arButton.style.bottom = '200px';
             arButton.style.right = '20px';
-            arButton.style.backgroundColor = 'rgba(255,152,0,0.9)';
+            arButton.style.backgroundColor = 'rgba(255,152,0,0.95)';
             arButton.style.color = 'white';
-            arButton.style.padding = '12px 20px';
-            arButton.style.borderRadius = '25px';
-            arButton.style.fontSize = '16px';
+            arButton.style.padding = '15px';
+            arButton.style.borderRadius = '50%';
+            arButton.style.fontSize = '20px';
             arButton.style.cursor = 'pointer';
-            arButton.style.border = 'none';
+            arButton.style.border = '2px solid rgba(255,255,255,0.3)';
             arButton.style.zIndex = '4000';
             arButton.style.fontFamily = 'Arial, sans-serif';
-            arButton.style.boxShadow = '0 4px 8px rgba(0,0,0,0.3)';
+            arButton.style.boxShadow = '0 6px 20px rgba(255,152,0,0.4)';
+            arButton.style.width = '70px';
+            arButton.style.height = '70px';
+            arButton.style.display = 'flex';
+            arButton.style.flexDirection = 'column';
+            arButton.style.alignItems = 'center';
+            arButton.style.justifyContent = 'center';
+            arButton.style.transition = 'all 0.3s ease';
+            arButton.style.backdropFilter = 'blur(10px)';
+            
+            // تأثيرات التفاعل
+            arButton.onmouseenter = function() {
+              this.style.transform = 'scale(1.1)';
+              this.style.boxShadow = '0 8px 25px rgba(255,152,0,0.6)';
+            };
+            arButton.onmouseleave = function() {
+              this.style.transform = 'scale(1)';
+              this.style.boxShadow = '0 6px 20px rgba(255,152,0,0.4)';
+            };
             
             const self = this;
             arButton.onclick = function() {
+              this.style.transform = 'scale(0.95)';
+              setTimeout(() => {
+                this.style.transform = 'scale(1.1)';
+              }, 100);
               self.enterAR();
             };
             
@@ -1204,34 +1275,565 @@ class _Video360ViewerPageState extends State<Video360ViewerPage> {
             this.createGyroscopeButton();
             
             console.log('Gyroscope controls enabled');
+            
+            // إنشاء لوحة التحكم الرئيسية
+            this.createMainControlPanel();
+            
+            // إنشاء شريط التقدم
+            this.createProgressBar();
+          },
+          
+          createMainControlPanel: function() {
+            // إنشاء زر القائمة الرئيسية
+            const menuButton = document.createElement('button');
+            menuButton.id = 'main-menu-button';
+            menuButton.innerHTML = '⚙️<br><span style="font-size: 10px;">Menu</span>';
+            menuButton.style.position = 'fixed';
+            menuButton.style.bottom = '100px';
+            menuButton.style.right = '20px';
+            menuButton.style.backgroundColor = 'rgba(33,150,243,0.95)';
+            menuButton.style.color = 'white';
+            menuButton.style.padding = '15px';
+            menuButton.style.borderRadius = '50%';
+            menuButton.style.fontSize = '18px';
+            menuButton.style.cursor = 'pointer';
+            menuButton.style.border = '2px solid rgba(255,255,255,0.3)';
+            menuButton.style.zIndex = '5000';
+            menuButton.style.fontFamily = 'Arial, sans-serif';
+            menuButton.style.boxShadow = '0 6px 20px rgba(33,150,243,0.4)';
+            menuButton.style.width = '60px';
+            menuButton.style.height = '60px';
+            menuButton.style.display = 'flex';
+            menuButton.style.flexDirection = 'column';
+            menuButton.style.alignItems = 'center';
+            menuButton.style.justifyContent = 'center';
+            menuButton.style.transition = 'all 0.3s ease';
+            menuButton.style.backdropFilter = 'blur(10px)';
+            
+            // تأثيرات التفاعل
+            menuButton.onmouseenter = function() {
+              this.style.transform = 'scale(1.1)';
+              this.style.boxShadow = '0 8px 25px rgba(33,150,243,0.6)';
+            };
+            menuButton.onmouseleave = function() {
+              this.style.transform = 'scale(1)';
+              this.style.boxShadow = '0 6px 20px rgba(33,150,243,0.4)';
+            };
+            
+            const self = this;
+            let panelVisible = false;
+            
+            menuButton.onclick = function() {
+              this.style.transform = 'scale(0.95)';
+              setTimeout(() => {
+                this.style.transform = 'scale(1.1)';
+              }, 100);
+              
+              if (panelVisible) {
+                self.hideControlPanel();
+                panelVisible = false;
+                this.innerHTML = '⚙️<br><span style="font-size: 10px;">Menu</span>';
+              } else {
+                self.showControlPanel();
+                panelVisible = true;
+                this.innerHTML = '✖️<br><span style="font-size: 10px;">Close</span>';
+              }
+            };
+            
+            document.body.appendChild(menuButton);
+          },
+          
+          showControlPanel: function() {
+            // إزالة اللوحة السابقة إن وجدت
+            const existingPanel = document.getElementById('floating-control-panel');
+            if (existingPanel) existingPanel.remove();
+            
+            // إنشاء لوحة التحكم العائمة
+            const controlPanel = document.createElement('div');
+            controlPanel.id = 'floating-control-panel';
+            controlPanel.style.position = 'fixed';
+            controlPanel.style.bottom = '120px';
+            controlPanel.style.right = '20px';
+            controlPanel.style.backgroundColor = 'rgba(0,0,0,0.9)';
+            controlPanel.style.color = 'white';
+            controlPanel.style.padding = '20px';
+            controlPanel.style.borderRadius = '20px';
+            controlPanel.style.zIndex = '4500';
+            controlPanel.style.fontFamily = 'Arial, sans-serif';
+            controlPanel.style.backdropFilter = 'blur(15px)';
+            controlPanel.style.border = '1px solid rgba(255,255,255,0.2)';
+            controlPanel.style.boxShadow = '0 10px 30px rgba(0,0,0,0.5)';
+            controlPanel.style.minWidth = '280px';
+            controlPanel.style.animation = 'slideUp 0.3s ease';
+            
+            // إضافة CSS للأنيميشن
+            if (!document.getElementById('control-panel-styles')) {
+              const style = document.createElement('style');
+              style.id = 'control-panel-styles';
+              style.textContent = `
+                @keyframes slideUp {
+                  from { transform: translateY(20px); opacity: 0; }
+                  to { transform: translateY(0); opacity: 1; }
+                }
+                @keyframes slideDown {
+                  from { transform: translateY(0); opacity: 1; }
+                  to { transform: translateY(20px); opacity: 0; }
+                }
+                .control-button {
+                  width: 100%;
+                  padding: 12px;
+                  margin: 8px 0;
+                  border: none;
+                  border-radius: 10px;
+                  color: white;
+                  cursor: pointer;
+                  font-size: 14px;
+                  transition: all 0.3s ease;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  gap: 10px;
+                }
+                .control-button:hover {
+                  transform: translateY(-2px);
+                  box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+                }
+              `;
+              document.head.appendChild(style);
+            }
+            
+            const self = this;
+            
+            controlPanel.innerHTML = `
+              <h3 style="margin: 0 0 15px 0; text-align: center; color: #2196F3; font-size: 18px;">🎮 لوحة التحكم</h3>
+              
+              <button class="control-button" onclick="window.Video360Viewer.showAudioControls()" 
+                      style="background: linear-gradient(45deg, #4CAF50, #45a049);">
+                🎵 إعدادات الصوت
+              </button>
+              
+              <button class="control-button" onclick="window.Video360Viewer.showAIPanel()" 
+                      style="background: linear-gradient(45deg, #FF6B35, #e55a2b);">
+                🤖 الذكاء الاصطناعي
+              </button>
+              
+              <button class="control-button" onclick="window.Video360Viewer.flipVideo((window.Video360Viewer.flipState || 0) + 1)" 
+                      style="background: linear-gradient(45deg, #9C27B0, #7B1FA2);">
+                🔄 قلب الفيديو
+              </button>
+              
+              <button class="control-button" onclick="window.Video360Viewer.resetView()" 
+                      style="background: linear-gradient(45deg, #FF9800, #F57C00);">
+                🎯 إعادة تعيين العرض
+              </button>
+              
+              <button class="control-button" onclick="window.Video360Viewer.toggleFullscreen()" 
+                      style="background: linear-gradient(45deg, #607D8B, #455A64);">
+                ⛶ ملء الشاشة
+              </button>
+              
+              <button class="control-button" onclick="window.Video360Viewer.toggleProgressBar()" 
+                      style="background: linear-gradient(45deg, #795548, #5D4037);">
+                📊 شريط التقدم
+              </button>
+              
+              <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.2);">
+                <h4 style="margin: 0 0 10px 0; color: #FFC107; font-size: 14px;">⚡ إعدادات سريعة</h4>
+                
+                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                  <button class="control-button" onclick="window.Video360Viewer.setQualityMode('high')" 
+                          style="background: linear-gradient(45deg, #4CAF50, #45a049); flex: 1; padding: 8px; font-size: 12px;">
+                    💎 عالية
+                  </button>
+                  <button class="control-button" onclick="window.Video360Viewer.setQualityMode('medium')" 
+                          style="background: linear-gradient(45deg, #FF9800, #F57C00); flex: 1; padding: 8px; font-size: 12px;">
+                    🎯 متوسطة
+                  </button>
+                  <button class="control-button" onclick="window.Video360Viewer.setQualityMode('low')" 
+                          style="background: linear-gradient(45deg, #F44336, #D32F2F); flex: 1; padding: 8px; font-size: 12px;">
+                    ⚡ سريعة
+                  </button>
+                </div>
+              </div>
+              
+              <div style="margin-top: 10px; text-align: center; font-size: 12px; color: #888;">
+                اضغط خارج اللوحة للإغلاق
+              </div>
+            `;
+            
+            document.body.appendChild(controlPanel);
+            
+            // إغلاق اللوحة عند الضغط خارجها
+            document.addEventListener('click', function(e) {
+              if (!controlPanel.contains(e.target) && !document.getElementById('main-menu-button').contains(e.target)) {
+                self.hideControlPanel();
+                const menuBtn = document.getElementById('main-menu-button');
+                if (menuBtn) {
+                  menuBtn.innerHTML = '⚙️<br><span style="font-size: 10px;">Menu</span>';
+                }
+              }
+            });
+          },
+          
+          hideControlPanel: function() {
+            const controlPanel = document.getElementById('floating-control-panel');
+            if (controlPanel) {
+              controlPanel.style.animation = 'slideDown 0.3s ease';
+              setTimeout(() => {
+                controlPanel.remove();
+              }, 300);
+            }
+          },
+          
+          toggleQualityPanel: function() {
+            const qualityPanel = document.getElementById('quality-panel');
+            if (!qualityPanel) return;
+            
+            if (qualityPanel.style.display === 'none') {
+              qualityPanel.style.display = 'block';
+              qualityPanel.style.animation = 'slideUp 0.3s ease';
+            } else {
+              qualityPanel.style.animation = 'slideDown 0.3s ease';
+              setTimeout(() => {
+                qualityPanel.style.display = 'none';
+              }, 300);
+            }
+          },
+          
+          toggleProgressBar: function() {
+            const progressContainer = document.getElementById('progress-container');
+            if (!progressContainer) return;
+            
+            if (progressContainer.style.display === 'none') {
+              progressContainer.style.display = 'flex';
+              progressContainer.style.animation = 'slideUp 0.3s ease';
+              progressContainer.style.transform = 'translateY(0)';
+            } else {
+              progressContainer.style.animation = 'slideDown 0.3s ease';
+              setTimeout(() => {
+                progressContainer.style.display = 'none';
+              }, 300);
+            }
           },
           
           createGyroscopeButton: function() {
             const gyroButton = document.createElement('button');
             gyroButton.id = 'gyro-button';
-            gyroButton.innerHTML = '📱 Gyroscope';
+            gyroButton.innerHTML = '🧭<br><span style="font-size: 12px;">Gyro</span>';
             gyroButton.style.position = 'fixed';
-            gyroButton.style.bottom = '20px';
+            gyroButton.style.bottom = '100px';
             gyroButton.style.left = '20px';
-            gyroButton.style.backgroundColor = 'rgba(76,175,80,0.9)';
+            gyroButton.style.backgroundColor = 'rgba(76,175,80,0.95)';
             gyroButton.style.color = 'white';
-            gyroButton.style.padding = '12px 20px';
-            gyroButton.style.borderRadius = '25px';
-            gyroButton.style.fontSize = '16px';
+            gyroButton.style.padding = '15px';
+            gyroButton.style.borderRadius = '50%';
+            gyroButton.style.fontSize = '20px';
             gyroButton.style.cursor = 'pointer';
-            gyroButton.style.border = 'none';
+            gyroButton.style.border = '2px solid rgba(255,255,255,0.3)';
             gyroButton.style.zIndex = '4000';
             gyroButton.style.fontFamily = 'Arial, sans-serif';
-            gyroButton.style.boxShadow = '0 4px 8px rgba(0,0,0,0.3)';
+            gyroButton.style.boxShadow = '0 6px 20px rgba(76,175,80,0.4)';
+            gyroButton.style.width = '70px';
+            gyroButton.style.height = '70px';
+            gyroButton.style.display = 'flex';
+            gyroButton.style.flexDirection = 'column';
+            gyroButton.style.alignItems = 'center';
+            gyroButton.style.justifyContent = 'center';
+            gyroButton.style.transition = 'all 0.3s ease';
+            gyroButton.style.backdropFilter = 'blur(10px)';
+            
+            // تأثيرات التفاعل
+            gyroButton.onmouseenter = function() {
+              this.style.transform = 'scale(1.1)';
+              this.style.boxShadow = '0 8px 25px rgba(76,175,80,0.6)';
+            };
+            gyroButton.onmouseleave = function() {
+              this.style.transform = 'scale(1)';
+              this.style.boxShadow = self.gyroscopeActive ? '0 6px 20px rgba(76,175,80,0.4)' : '0 6px 20px rgba(158,158,158,0.4)';
+            };
             
             const self = this;
             gyroButton.onclick = function() {
+              this.style.transform = 'scale(0.95)';
+              setTimeout(() => {
+                this.style.transform = 'scale(1.1)';
+              }, 100);
+              
               self.toggleGyroscope();
-              this.textContent = self.gyroscopeActive ? '📱 Gyro ON' : '📱 Gyro OFF';
-              this.style.backgroundColor = self.gyroscopeActive ? 'rgba(76,175,80,0.9)' : 'rgba(158,158,158,0.9)';
+              
+              // تحديث المظهر
+              if (self.gyroscopeActive) {
+                this.innerHTML = '🧭<br><span style="font-size: 12px;">ON</span>';
+                this.style.backgroundColor = 'rgba(76,175,80,0.95)';
+                this.style.boxShadow = '0 6px 20px rgba(76,175,80,0.4)';
+              } else {
+                this.innerHTML = '🧭<br><span style="font-size: 12px;">OFF</span>';
+                this.style.backgroundColor = 'rgba(158,158,158,0.95)';
+                this.style.boxShadow = '0 6px 20px rgba(158,158,158,0.4)';
+              }
             };
             
             document.body.appendChild(gyroButton);
+          },
+          
+          createProgressBar: function() {
+            // إنشاء حاوي شريط التقدم
+            const progressContainer = document.createElement('div');
+            progressContainer.id = 'progress-container';
+            progressContainer.style.position = 'fixed';
+            progressContainer.style.bottom = '0';
+            progressContainer.style.left = '0';
+            progressContainer.style.right = '0';
+            progressContainer.style.height = '80px';
+            progressContainer.style.backgroundColor = 'rgba(0,0,0,0.85)';
+            progressContainer.style.backdropFilter = 'blur(15px)';
+            progressContainer.style.zIndex = '2500';
+            progressContainer.style.display = 'flex';
+            progressContainer.style.alignItems = 'center';
+            progressContainer.style.padding = '0 20px';
+            progressContainer.style.transition = 'all 0.3s ease';
+            progressContainer.style.transform = 'translateY(80px)';
+            progressContainer.style.flexDirection = 'column';
+            progressContainer.style.justifyContent = 'center';
+            
+            // إنشاء صف الأزرار
+            const buttonRow = document.createElement('div');
+            buttonRow.style.display = 'flex';
+            buttonRow.style.alignItems = 'center';
+            buttonRow.style.justifyContent = 'center';
+            buttonRow.style.gap = '15px';
+            buttonRow.style.marginBottom = '10px';
+            
+            // إنشاء صف شريط التقدم
+            const progressRow = document.createElement('div');
+            progressRow.style.display = 'flex';
+            progressRow.style.alignItems = 'center';
+            progressRow.style.width = '100%';
+            progressRow.style.padding = '0 20px';
+            
+            // شريط التقدم
+            const progressBar = document.createElement('div');
+            progressBar.id = 'video-progress-bar';
+            progressBar.style.flex = '1';
+            progressBar.style.height = '8px';
+            progressBar.style.backgroundColor = 'rgba(255,255,255,0.3)';
+            progressBar.style.borderRadius = '4px';
+            progressBar.style.margin = '0 15px';
+            progressBar.style.cursor = 'pointer';
+            progressBar.style.position = 'relative';
+            progressBar.style.overflow = 'hidden';
+            progressBar.style.boxShadow = 'inset 0 1px 3px rgba(0,0,0,0.3)';
+            
+            // التقدم المملوء
+            const progressFill = document.createElement('div');
+            progressFill.id = 'progress-fill';
+            progressFill.style.height = '100%';
+            progressFill.style.backgroundColor = '#2196F3';
+            progressFill.style.borderRadius = '4px';
+            progressFill.style.width = '0%';
+            progressFill.style.transition = 'width 0.1s ease';
+            progressFill.style.background = 'linear-gradient(90deg, #2196F3, #21CBF3, #03DAC6)';
+            progressFill.style.boxShadow = '0 2px 4px rgba(33,150,243,0.3)';
+            
+            // مؤشر الوقت الحالي
+            const currentTime = document.createElement('span');
+            currentTime.id = 'current-time';
+            currentTime.textContent = '0:00';
+            currentTime.style.color = 'white';
+            currentTime.style.fontSize = '14px';
+            currentTime.style.fontFamily = 'Arial, sans-serif';
+            currentTime.style.minWidth = '40px';
+            
+            // مؤشر المدة الإجمالية
+            const totalTime = document.createElement('span');
+            totalTime.id = 'total-time';
+            totalTime.textContent = '0:00';
+            totalTime.style.color = 'rgba(255,255,255,0.7)';
+            totalTime.style.fontSize = '14px';
+            totalTime.style.fontFamily = 'Arial, sans-serif';
+            totalTime.style.minWidth = '40px';
+            
+            // أزرار التحكم السريع
+            const playPauseBtn = document.createElement('button');
+            playPauseBtn.innerHTML = '⏸️';
+            playPauseBtn.style.background = 'rgba(33,150,243,0.8)';
+            playPauseBtn.style.border = '1px solid rgba(255,255,255,0.3)';
+            playPauseBtn.style.color = 'white';
+            playPauseBtn.style.padding = '12px 16px';
+            playPauseBtn.style.borderRadius = '25px';
+            playPauseBtn.style.cursor = 'pointer';
+            playPauseBtn.style.fontSize = '18px';
+            playPauseBtn.style.transition = 'all 0.3s ease';
+            playPauseBtn.style.backdropFilter = 'blur(10px)';
+            playPauseBtn.style.boxShadow = '0 4px 12px rgba(33,150,243,0.3)';
+            
+            const volumeBtn = document.createElement('button');
+            volumeBtn.innerHTML = '🔊';
+            volumeBtn.style.background = 'rgba(76,175,80,0.8)';
+            volumeBtn.style.border = '1px solid rgba(255,255,255,0.3)';
+            volumeBtn.style.color = 'white';
+            volumeBtn.style.padding = '12px 16px';
+            volumeBtn.style.borderRadius = '25px';
+            volumeBtn.style.cursor = 'pointer';
+            volumeBtn.style.fontSize = '18px';
+            volumeBtn.style.transition = 'all 0.3s ease';
+            volumeBtn.style.backdropFilter = 'blur(10px)';
+            volumeBtn.style.boxShadow = '0 4px 12px rgba(76,175,80,0.3)';
+            
+            // زر ملء الشاشة
+            const fullscreenBtn = document.createElement('button');
+            fullscreenBtn.innerHTML = '⛶';
+            fullscreenBtn.style.background = 'rgba(255,152,0,0.8)';
+            fullscreenBtn.style.border = '1px solid rgba(255,255,255,0.3)';
+            fullscreenBtn.style.color = 'white';
+            fullscreenBtn.style.padding = '12px 16px';
+            fullscreenBtn.style.borderRadius = '25px';
+            fullscreenBtn.style.cursor = 'pointer';
+            fullscreenBtn.style.fontSize = '18px';
+            fullscreenBtn.style.transition = 'all 0.3s ease';
+            fullscreenBtn.style.backdropFilter = 'blur(10px)';
+            fullscreenBtn.style.boxShadow = '0 4px 12px rgba(255,152,0,0.3)';
+            
+            // تجميع العناصر
+            progressBar.appendChild(progressFill);
+            
+            // إضافة الأزرار إلى صف الأزرار
+            buttonRow.appendChild(playPauseBtn);
+            buttonRow.appendChild(volumeBtn);
+            buttonRow.appendChild(fullscreenBtn);
+            
+            // إضافة عناصر شريط التقدم إلى صف التقدم
+            progressRow.appendChild(currentTime);
+            progressRow.appendChild(progressBar);
+            progressRow.appendChild(totalTime);
+            
+            // إضافة الصفوف إلى الحاوي الرئيسي
+            progressContainer.appendChild(buttonRow);
+            progressContainer.appendChild(progressRow);
+            
+            document.body.appendChild(progressContainer);
+            
+            const self = this;
+            
+            // إظهار شريط التقدم عند تحريك الماوس
+            let hideTimeout;
+            document.addEventListener('mousemove', function() {
+              progressContainer.style.transform = 'translateY(0)';
+              clearTimeout(hideTimeout);
+              hideTimeout = setTimeout(() => {
+                progressContainer.style.transform = 'translateY(80px)';
+              }, 3000);
+            });
+            
+            // تفعيل شريط التقدم عند تحميل الفيديو
+            if (this.video) {
+              this.setupProgressBarEvents();
+            }
+            
+            // أحداث الأزرار
+            playPauseBtn.onclick = function() {
+              if (self.video) {
+                if (self.video.paused) {
+                  self.video.play();
+                  this.innerHTML = '⏸️';
+                } else {
+                  self.video.pause();
+                  this.innerHTML = '▶️';
+                }
+              }
+            };
+            
+            volumeBtn.onclick = function() {
+              if (self.video) {
+                if (self.video.muted) {
+                  self.video.muted = false;
+                  this.innerHTML = '🔊';
+                } else {
+                  self.video.muted = true;
+                  this.innerHTML = '🔇';
+                }
+              }
+            };
+            
+            fullscreenBtn.onclick = function() {
+              if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+                this.innerHTML = '🔲';
+              } else {
+                document.exitFullscreen();
+                this.innerHTML = '⛶';
+              }
+            };
+            
+            // تأثيرات التفاعل
+            playPauseBtn.onmouseenter = function() {
+              this.style.transform = 'scale(1.1)';
+              this.style.boxShadow = '0 6px 20px rgba(33,150,243,0.5)';
+            };
+            playPauseBtn.onmouseleave = function() {
+              this.style.transform = 'scale(1)';
+              this.style.boxShadow = '0 4px 12px rgba(33,150,243,0.3)';
+            };
+            
+            volumeBtn.onmouseenter = function() {
+              this.style.transform = 'scale(1.1)';
+              this.style.boxShadow = '0 6px 20px rgba(76,175,80,0.5)';
+            };
+            volumeBtn.onmouseleave = function() {
+              this.style.transform = 'scale(1)';
+              this.style.boxShadow = '0 4px 12px rgba(76,175,80,0.3)';
+            };
+            
+            fullscreenBtn.onmouseenter = function() {
+              this.style.transform = 'scale(1.1)';
+              this.style.boxShadow = '0 6px 20px rgba(255,152,0,0.5)';
+            };
+            fullscreenBtn.onmouseleave = function() {
+              this.style.transform = 'scale(1)';
+              this.style.boxShadow = '0 4px 12px rgba(255,152,0,0.3)';
+            };
+          },
+          
+          setupProgressBarEvents: function() {
+            if (!this.video) return;
+            
+            const progressBar = document.getElementById('video-progress-bar');
+            const progressFill = document.getElementById('progress-fill');
+            const currentTimeSpan = document.getElementById('current-time');
+            const totalTimeSpan = document.getElementById('total-time');
+            
+            if (!progressBar || !progressFill || !currentTimeSpan || !totalTimeSpan) return;
+            
+            const self = this;
+            
+            // تحديث شريط التقدم
+            this.video.addEventListener('timeupdate', function() {
+              const progress = (this.currentTime / this.duration) * 100;
+              progressFill.style.width = progress + '%';
+              
+              currentTimeSpan.textContent = self.formatTime(this.currentTime);
+              totalTimeSpan.textContent = self.formatTime(this.duration);
+            });
+            
+            // النقر على شريط التقدم للانتقال
+            progressBar.addEventListener('click', function(e) {
+              const rect = this.getBoundingClientRect();
+              const clickX = e.clientX - rect.left;
+              const width = rect.width;
+              const percentage = clickX / width;
+              
+              if (self.video && self.video.duration) {
+                self.video.currentTime = percentage * self.video.duration;
+              }
+            });
+          },
+          
+          formatTime: function(seconds) {
+            if (isNaN(seconds)) return '0:00';
+            
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return mins + ':' + (secs < 10 ? '0' : '') + secs;
           },
           
           toggleGyroscope: function() {
@@ -1372,6 +1974,338 @@ class _Video360ViewerPageState extends State<Video360ViewerPage> {
             }
           },
           
+          setupAI: function() {
+            try {
+              console.log('Initializing AI features...');
+              
+              // إعداد تحليل الفيديو الذكي
+              this.aiEnabled = true;
+              this.sceneAnalysis = {
+                brightness: 0,
+                contrast: 0,
+                dominantColors: [],
+                motionLevel: 0,
+                audioLevel: 0
+              };
+              
+              // إعداد التحسين التلقائي
+              this.autoOptimization = true;
+              this.adaptiveQuality = true;
+              
+              // إعداد التنبؤ بالحركة
+              this.motionPrediction = {
+                enabled: true,
+                history: [],
+                predicted: { lon: 0, lat: 0 }
+              };
+              
+              // إعداد التحليل الصوتي الذكي
+              this.audioAI = {
+                enabled: true,
+                beatDetection: false,
+                frequencyAnalysis: [],
+                musicGenre: 'unknown'
+              };
+              
+              console.log('AI features initialized successfully');
+              
+            } catch (error) {
+              console.log('AI initialization error:', error);
+              this.aiEnabled = false;
+            }
+          },
+          
+          analyzeScene: function() {
+            if (!this.aiEnabled || !this.video || !this.renderer) return;
+            
+            try {
+              // تحليل السطوع والتباين
+              const canvas = this.renderer.domElement;
+              const ctx = canvas.getContext('2d');
+              if (ctx) {
+                const imageData = ctx.getImageData(0, 0, 100, 100);
+                const data = imageData.data;
+                
+                let brightness = 0;
+                let contrast = 0;
+                
+                for (let i = 0; i < data.length; i += 4) {
+                  const r = data[i];
+                  const g = data[i + 1];
+                  const b = data[i + 2];
+                  brightness += (r + g + b) / 3;
+                }
+                
+                brightness = brightness / (data.length / 4);
+                this.sceneAnalysis.brightness = brightness / 255;
+                
+                // تحليل مستوى الحركة
+                this.analyzeMotion();
+                
+                // تحليل الصوت
+                this.analyzeAudio();
+                
+                // تطبيق التحسينات التلقائية
+                this.applyAIOptimizations();
+              }
+              
+            } catch (error) {
+              console.log('Scene analysis error:', error);
+            }
+          },
+          
+          analyzeMotion: function() {
+            if (!this.motionPrediction.enabled) return;
+            
+            // تسجيل تاريخ الحركة
+            const currentPosition = { lon: this.lon, lat: this.lat, time: Date.now() };
+            this.motionPrediction.history.push(currentPosition);
+            
+            // الاحتفاظ بآخر 10 نقاط فقط
+            if (this.motionPrediction.history.length > 10) {
+              this.motionPrediction.history.shift();
+            }
+            
+            // حساب مستوى الحركة
+            if (this.motionPrediction.history.length >= 2) {
+              const recent = this.motionPrediction.history.slice(-2);
+              const deltaLon = Math.abs(recent[1].lon - recent[0].lon);
+              const deltaLat = Math.abs(recent[1].lat - recent[0].lat);
+              this.sceneAnalysis.motionLevel = deltaLon + deltaLat;
+              
+              // التنبؤ بالحركة القادمة
+              this.predictNextMove();
+            }
+          },
+          
+          predictNextMove: function() {
+            if (this.motionPrediction.history.length < 3) return;
+            
+            const history = this.motionPrediction.history;
+            const recent = history.slice(-3);
+            
+            // حساب الاتجاه والسرعة
+            let avgDeltaLon = 0;
+            let avgDeltaLat = 0;
+            
+            for (let i = 1; i < recent.length; i++) {
+              avgDeltaLon += recent[i].lon - recent[i-1].lon;
+              avgDeltaLat += recent[i].lat - recent[i-1].lat;
+            }
+            
+            avgDeltaLon /= (recent.length - 1);
+            avgDeltaLat /= (recent.length - 1);
+            
+            // التنبؤ بالموقع القادم
+            this.motionPrediction.predicted = {
+              lon: this.lon + avgDeltaLon * 2,
+              lat: this.lat + avgDeltaLat * 2
+            };
+          },
+          
+          analyzeAudio: function() {
+            if (!this.audioAI.enabled || !this.analyserNode) return;
+            
+            try {
+              // تحليل التردد
+              this.analyserNode.getByteFrequencyData(this.audioDataArray);
+              
+              // حساب مستوى الصوت العام
+              let totalLevel = 0;
+              for (let i = 0; i < this.audioDataArray.length; i++) {
+                totalLevel += this.audioDataArray[i];
+              }
+              this.sceneAnalysis.audioLevel = totalLevel / this.audioDataArray.length;
+              
+              // تحليل الترددات للكشف عن النوع الموسيقي
+              this.analyzeFrequencies();
+              
+              // كشف الإيقاع
+              this.detectBeat();
+              
+            } catch (error) {
+              console.log('Audio analysis error:', error);
+            }
+          },
+          
+          analyzeFrequencies: function() {
+            const frequencies = this.audioDataArray;
+            const bass = frequencies.slice(0, 10).reduce((a, b) => a + b, 0) / 10;
+            const mid = frequencies.slice(10, 50).reduce((a, b) => a + b, 0) / 40;
+            const treble = frequencies.slice(50, 128).reduce((a, b) => a + b, 0) / 78;
+            
+            this.audioAI.frequencyAnalysis = { bass, mid, treble };
+            
+            // تخمين النوع الموسيقي بناء على التوزيع الترددي
+            if (bass > mid && bass > treble) {
+              this.audioAI.musicGenre = 'electronic';
+            } else if (mid > bass && mid > treble) {
+              this.audioAI.musicGenre = 'vocal';
+            } else if (treble > bass && treble > mid) {
+              this.audioAI.musicGenre = 'classical';
+            } else {
+              this.audioAI.musicGenre = 'mixed';
+            }
+          },
+          
+          detectBeat: function() {
+            const currentLevel = this.sceneAnalysis.audioLevel;
+            
+            if (!this.lastAudioLevel) {
+              this.lastAudioLevel = currentLevel;
+              return;
+            }
+            
+            // كشف الذروة الصوتية (Beat)
+            if (currentLevel > this.lastAudioLevel * 1.3 && currentLevel > 50) {
+              this.audioAI.beatDetection = true;
+              
+              // تأثير بصري مع الإيقاع
+              if (this.sphere) {
+                const intensity = currentLevel / 255;
+                this.sphere.material.emissive.setRGB(intensity * 0.2, intensity * 0.1, intensity * 0.3);
+                
+                // العودة للطبيعي تدريجياً
+                setTimeout(() => {
+                  if (this.sphere) {
+                    this.sphere.material.emissive.setRGB(0, 0, 0);
+                  }
+                }, 100);
+              }
+            } else {
+              this.audioAI.beatDetection = false;
+            }
+            
+            this.lastAudioLevel = currentLevel;
+          },
+          
+          applyAIOptimizations: function() {
+            if (!this.autoOptimization) return;
+            
+            try {
+              // تحسين الجودة بناء على مستوى الحركة
+              if (this.sceneAnalysis.motionLevel > 50) {
+                // حركة سريعة - خفض الجودة للأداء
+                this.setQualityMode('medium');
+              } else if (this.sceneAnalysis.motionLevel < 10) {
+                // حركة قليلة - رفع الجودة
+                this.setQualityMode('high');
+              }
+              
+              // تحسين الصوت بناء على النوع الموسيقي
+              this.optimizeAudioForGenre();
+              
+              // تحسين الإضاءة بناء على السطوع
+              this.optimizeLighting();
+              
+            } catch (error) {
+              console.log('AI optimization error:', error);
+            }
+          },
+          
+          optimizeAudioForGenre: function() {
+            if (!this.eqFilters || !this.audioAI.enabled) return;
+            
+            // تحسين المعادل بناء على النوع الموسيقي
+            switch(this.audioAI.musicGenre) {
+              case 'electronic':
+                // تعزيز الباس والترددات العالية
+                if (this.eqFilters[0]) this.eqFilters[0].gain.value = 3; // Bass
+                if (this.eqFilters[5]) this.eqFilters[5].gain.value = 2; // Treble
+                break;
+              case 'vocal':
+                // تعزيز الترددات المتوسطة
+                if (this.eqFilters[2]) this.eqFilters[2].gain.value = 2;
+                if (this.eqFilters[3]) this.eqFilters[3].gain.value = 2;
+                break;
+              case 'classical':
+                // توازن طبيعي مع تعزيز خفيف للترددات العالية
+                if (this.eqFilters[4]) this.eqFilters[4].gain.value = 1;
+                if (this.eqFilters[5]) this.eqFilters[5].gain.value = 1;
+                break;
+            }
+          },
+          
+          optimizeLighting: function() {
+            if (!this.renderer) return;
+            
+            // تحسين الإضاءة بناء على سطوع المشهد
+            if (this.sceneAnalysis.brightness < 0.3) {
+              // مشهد مظلم - زيادة السطوع
+              this.renderer.toneMappingExposure = 1.5;
+            } else if (this.sceneAnalysis.brightness > 0.7) {
+              // مشهد مشرق - تقليل السطوع
+              this.renderer.toneMappingExposure = 0.8;
+            } else {
+              // سطوع طبيعي
+              this.renderer.toneMappingExposure = 1.0;
+            }
+          },
+          
+          showAIPanel: function() {
+            if (!this.aiEnabled) {
+              console.log('AI features not available');
+              return;
+            }
+            
+            // إنشاء لوحة الذكاء الاصطناعي
+            const aiPanel = document.createElement('div');
+            aiPanel.id = 'ai-panel';
+            aiPanel.style.position = 'fixed';
+            aiPanel.style.top = '10px';
+            aiPanel.style.left = '10px';
+            aiPanel.style.backgroundColor = 'rgba(0,0,0,0.8)';
+            aiPanel.style.color = 'white';
+            aiPanel.style.padding = '15px';
+            aiPanel.style.borderRadius = '10px';
+            aiPanel.style.zIndex = '3000';
+            aiPanel.style.minWidth = '250px';
+            aiPanel.style.fontFamily = 'Arial, sans-serif';
+            aiPanel.style.fontSize = '12px';
+            
+            const self = this;
+            
+            function updateAIPanel() {
+              if (!document.getElementById('ai-panel')) return;
+              
+              aiPanel.innerHTML = 
+                '<h3 style="margin-top: 0; color: #FF6B35;">🤖 الذكاء الاصطناعي</h3>' +
+                '<div>📊 السطوع: ' + (self.sceneAnalysis.brightness * 100).toFixed(1) + '%</div>' +
+                '<div>🏃 مستوى الحركة: ' + self.sceneAnalysis.motionLevel.toFixed(1) + '</div>' +
+                '<div>🔊 مستوى الصوت: ' + self.sceneAnalysis.audioLevel.toFixed(1) + '</div>' +
+                '<div>🎵 النوع الموسيقي: ' + self.audioAI.musicGenre + '</div>' +
+                '<div>💓 كشف الإيقاع: ' + (self.audioAI.beatDetection ? '✅' : '❌') + '</div>' +
+                '<div>🎯 التنبؤ: lon=' + self.motionPrediction.predicted.lon.toFixed(1) + ', lat=' + self.motionPrediction.predicted.lat.toFixed(1) + '</div>' +
+                '<div style="margin-top: 10px;">' +
+                  '<button onclick="window.Video360Viewer.toggleAutoOptimization()" style="width: 100%; padding: 5px; margin: 2px 0; background: ' + (self.autoOptimization ? '#4CAF50' : '#f44336') + '; color: white; border: none; border-radius: 3px; cursor: pointer;">تحسين تلقائي: ' + (self.autoOptimization ? 'ON' : 'OFF') + '</button>' +
+                  '<button onclick="window.Video360Viewer.toggleMotionPrediction()" style="width: 100%; padding: 5px; margin: 2px 0; background: ' + (self.motionPrediction.enabled ? '#4CAF50' : '#f44336') + '; color: white; border: none; border-radius: 3px; cursor: pointer;">تنبؤ الحركة: ' + (self.motionPrediction.enabled ? 'ON' : 'OFF') + '</button>' +
+                '</div>' +
+                '<button onclick="document.getElementById(\\'ai-panel\\').remove()" style="width: 100%; padding: 8px; margin-top: 10px; background: #f44336; color: white; border: none; border-radius: 5px; cursor: pointer;">إغلاق</button>';
+            }
+            
+            updateAIPanel();
+            document.body.appendChild(aiPanel);
+            
+            // تحديث اللوحة كل ثانية
+            const updateInterval = setInterval(() => {
+              if (document.getElementById('ai-panel')) {
+                updateAIPanel();
+              } else {
+                clearInterval(updateInterval);
+              }
+            }, 1000);
+          },
+          
+          toggleAutoOptimization: function() {
+            this.autoOptimization = !this.autoOptimization;
+            console.log('Auto Optimization:', this.autoOptimization ? 'ON' : 'OFF');
+          },
+          
+          toggleMotionPrediction: function() {
+            this.motionPrediction.enabled = !this.motionPrediction.enabled;
+            console.log('Motion Prediction:', this.motionPrediction.enabled ? 'ON' : 'OFF');
+          },
+          
           animate: function() {
             const self = this;
             requestAnimationFrame(function() {
@@ -1382,6 +2316,11 @@ class _Video360ViewerPageState extends State<Video360ViewerPage> {
             
             // تحديث الصوت المكاني
             this.updateSpatialAudio();
+            
+            // تحليل المشهد بالذكاء الاصطناعي
+            if (this.frameCount % 30 === 0) { // كل 30 إطار
+              this.analyzeScene();
+            }
             
             // تحسين الأداء - تنظيف الذاكرة كل 100 إطار
             if (!this.frameCount) this.frameCount = 0;
