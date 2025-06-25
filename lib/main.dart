@@ -158,6 +158,9 @@ class _Video360ViewerPageState extends State<Video360ViewerPage> {
             this.scene = new THREE.Scene();
             this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1100);
             
+            // إعداد دعم VR
+            this.setupVRSupport();
+            
             // إنشاء الرندر مع تحسينات متقدمة للدقة العالية
             const canvas = document.createElement('canvas');
             const context = canvas.getContext('webgl2') || canvas.getContext('webgl');
@@ -223,6 +226,14 @@ class _Video360ViewerPageState extends State<Video360ViewerPage> {
               console.log('%c🎵 ميزات الصوت المكاني متاحة!', 'color: #4CAF50; font-size: 14px; font-weight: bold;');
               console.log('استخدم Ctrl+S لفتح إعدادات الصوت');
               console.log('استخدم Ctrl+X لتبديل الصوت المكاني');
+            }
+            
+            // رسالة ترحيب للميزات VR/AR
+            if (this.vrSupported || this.arSupported || this.gyroscopeSupported) {
+              console.log('%c🥽 ميزات VR/AR متاحة!', 'color: #2196F3; font-size: 14px; font-weight: bold;');
+              if (this.vrSupported) console.log('استخدم Ctrl+V لدخول وضع VR');
+              if (this.arSupported) console.log('استخدم Ctrl+A لدخول وضع AR');
+              if (this.gyroscopeSupported) console.log('استخدم Ctrl+G لتفعيل الجايروسكوب');
             }
             return true;
           },
@@ -549,7 +560,10 @@ class _Video360ViewerPageState extends State<Video360ViewerPage> {
               'المعالج: ' + (this.renderer.capabilities.isWebGL2 ? 'WebGL2' : 'WebGL1') + '<br>' +
               'الذاكرة: ' + (memoryInfo.textures || 0) + ' textures<br>' +
               'FPS: ' + Math.round(1000 / (performance.now() - (this.lastFrameTime || performance.now()))) + '<br>' +
-              '🎵 صوت مكاني: ' + (this.spatialAudioEnabled && this.spatialAudioActive ? '✅ مفعل' : '❌ معطل');
+              '🎵 صوت مكاني: ' + (this.spatialAudioEnabled && this.spatialAudioActive ? '✅ مفعل' : '❌ معطل') + '<br>' +
+              '🥽 VR Support: ' + (this.vrSupported ? '✅ متاح' : '❌ غير متاح') + '<br>' +
+              '📱 AR Support: ' + (this.arSupported ? '✅ متاح' : '❌ غير متاح') + '<br>' +
+              '🧭 Gyroscope: ' + (this.gyroscopeSupported ? (this.gyroscopeActive ? '✅ مفعل' : '⏸️ متاح') : '❌ غير متاح');
             
             this.lastFrameTime = performance.now();
           },
@@ -949,6 +963,24 @@ class _Video360ViewerPageState extends State<Video360ViewerPage> {
                     self.toggleSpatialAudio();
                   }
                   break;
+                case 'v': // تفعيل VR
+                  if (event.ctrlKey) {
+                    event.preventDefault();
+                    self.enterVR();
+                  }
+                  break;
+                case 'g': // تبديل الجايروسكوب
+                  if (event.ctrlKey) {
+                    event.preventDefault();
+                    self.toggleGyroscope();
+                  }
+                  break;
+                case 'a': // تفعيل AR
+                  if (event.ctrlKey) {
+                    event.preventDefault();
+                    self.enterAR();
+                  }
+                  break;
               }
             });
           },
@@ -1019,6 +1051,324 @@ class _Video360ViewerPageState extends State<Video360ViewerPage> {
               
             } catch (error) {
               console.log('Error updating spatial audio:', error);
+            }
+          },
+          
+          setupVRSupport: function() {
+            try {
+              // التحقق من دعم WebXR للـ VR
+              if ('xr' in navigator) {
+                navigator.xr.isSessionSupported('immersive-vr').then((supported) => {
+                  if (supported) {
+                    this.vrSupported = true;
+                    console.log('VR Support: Available');
+                    this.createVRButton();
+                  } else {
+                    console.log('VR Support: Not available');
+                    this.vrSupported = false;
+                  }
+                }).catch(() => {
+                  console.log('VR Support: Error checking');
+                  this.vrSupported = false;
+                });
+                
+                // التحقق من دعم AR
+                navigator.xr.isSessionSupported('immersive-ar').then((supported) => {
+                  if (supported) {
+                    this.arSupported = true;
+                    console.log('AR Support: Available');
+                    this.createARButton();
+                  } else {
+                    console.log('AR Support: Not available');
+                    this.arSupported = false;
+                  }
+                }).catch(() => {
+                  console.log('AR Support: Error checking');
+                  this.arSupported = false;
+                });
+              } else {
+                console.log('WebXR not available - no VR/AR support');
+                this.vrSupported = false;
+                this.arSupported = false;
+              }
+              
+              // التحقق من دعم الجايروسكوب للموبايل
+              if (window.DeviceOrientationEvent) {
+                this.gyroscopeSupported = true;
+                console.log('Gyroscope Support: Available');
+                this.setupGyroscope();
+              } else {
+                this.gyroscopeSupported = false;
+                console.log('Gyroscope Support: Not available');
+              }
+              
+            } catch (error) {
+              console.log('VR/AR Setup Error:', error);
+              this.vrSupported = false;
+              this.gyroscopeSupported = false;
+            }
+          },
+          
+          createVRButton: function() {
+            if (!this.vrSupported) return;
+            
+            const vrButton = document.createElement('button');
+            vrButton.id = 'vr-button';
+            vrButton.innerHTML = '🥽 VR Mode';
+            vrButton.style.position = 'fixed';
+            vrButton.style.bottom = '80px';
+            vrButton.style.right = '20px';
+            vrButton.style.backgroundColor = 'rgba(0,150,255,0.9)';
+            vrButton.style.color = 'white';
+            vrButton.style.padding = '12px 20px';
+            vrButton.style.borderRadius = '25px';
+            vrButton.style.fontSize = '16px';
+            vrButton.style.cursor = 'pointer';
+            vrButton.style.border = 'none';
+            vrButton.style.zIndex = '4000';
+            vrButton.style.fontFamily = 'Arial, sans-serif';
+            vrButton.style.boxShadow = '0 4px 8px rgba(0,0,0,0.3)';
+            
+            const self = this;
+            vrButton.onclick = function() {
+              self.enterVR();
+            };
+            
+            document.body.appendChild(vrButton);
+          },
+          
+          createARButton: function() {
+            if (!this.arSupported) return;
+            
+            const arButton = document.createElement('button');
+            arButton.id = 'ar-button';
+            arButton.innerHTML = '📱 AR Mode';
+            arButton.style.position = 'fixed';
+            arButton.style.bottom = '140px';
+            arButton.style.right = '20px';
+            arButton.style.backgroundColor = 'rgba(255,152,0,0.9)';
+            arButton.style.color = 'white';
+            arButton.style.padding = '12px 20px';
+            arButton.style.borderRadius = '25px';
+            arButton.style.fontSize = '16px';
+            arButton.style.cursor = 'pointer';
+            arButton.style.border = 'none';
+            arButton.style.zIndex = '4000';
+            arButton.style.fontFamily = 'Arial, sans-serif';
+            arButton.style.boxShadow = '0 4px 8px rgba(0,0,0,0.3)';
+            
+            const self = this;
+            arButton.onclick = function() {
+              self.enterAR();
+            };
+            
+            document.body.appendChild(arButton);
+          },
+          
+          setupGyroscope: function() {
+            if (!this.gyroscopeSupported) return;
+            
+            const self = this;
+            
+            // طلب إذن الوصول للجايروسكوب (iOS 13+)
+            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+              DeviceOrientationEvent.requestPermission().then(response => {
+                if (response === 'granted') {
+                  self.enableGyroscope();
+                }
+              }).catch(console.error);
+            } else {
+              // للأجهزة الأخرى
+              this.enableGyroscope();
+            }
+          },
+          
+          enableGyroscope: function() {
+            const self = this;
+            
+            window.addEventListener('deviceorientation', function(event) {
+              if (!self.gyroscopeActive) return;
+              
+              // تحويل قيم الجايروسكوب إلى زوايا الكاميرا
+              const alpha = event.alpha || 0; // Z axis
+              const beta = event.beta || 0;   // X axis
+              const gamma = event.gamma || 0; // Y axis
+              
+              // تحديث موقع الكاميرا بناء على الجايروسكوب
+              self.lon = alpha;
+              self.lat = Math.max(-85, Math.min(85, beta - 90));
+              
+            }, true);
+            
+            // إنشاء زر تفعيل الجايروسكوب
+            this.createGyroscopeButton();
+            
+            console.log('Gyroscope controls enabled');
+          },
+          
+          createGyroscopeButton: function() {
+            const gyroButton = document.createElement('button');
+            gyroButton.id = 'gyro-button';
+            gyroButton.innerHTML = '📱 Gyroscope';
+            gyroButton.style.position = 'fixed';
+            gyroButton.style.bottom = '20px';
+            gyroButton.style.left = '20px';
+            gyroButton.style.backgroundColor = 'rgba(76,175,80,0.9)';
+            gyroButton.style.color = 'white';
+            gyroButton.style.padding = '12px 20px';
+            gyroButton.style.borderRadius = '25px';
+            gyroButton.style.fontSize = '16px';
+            gyroButton.style.cursor = 'pointer';
+            gyroButton.style.border = 'none';
+            gyroButton.style.zIndex = '4000';
+            gyroButton.style.fontFamily = 'Arial, sans-serif';
+            gyroButton.style.boxShadow = '0 4px 8px rgba(0,0,0,0.3)';
+            
+            const self = this;
+            gyroButton.onclick = function() {
+              self.toggleGyroscope();
+              this.textContent = self.gyroscopeActive ? '📱 Gyro ON' : '📱 Gyro OFF';
+              this.style.backgroundColor = self.gyroscopeActive ? 'rgba(76,175,80,0.9)' : 'rgba(158,158,158,0.9)';
+            };
+            
+            document.body.appendChild(gyroButton);
+          },
+          
+          toggleGyroscope: function() {
+            this.gyroscopeActive = !this.gyroscopeActive;
+            console.log('Gyroscope:', this.gyroscopeActive ? 'ON' : 'OFF');
+          },
+          
+          enterVR: function() {
+            if (!this.vrSupported) {
+              console.log('VR not supported');
+              return;
+            }
+            
+            const self = this;
+            
+            navigator.xr.requestSession('immersive-vr', {
+              optionalFeatures: ['local-floor', 'bounded-floor']
+            }).then((session) => {
+              self.vrSession = session;
+              
+              // إعداد WebGL للـ VR
+              self.renderer.xr.enabled = true;
+              self.renderer.xr.setSession(session);
+              
+              // تحديث حلقة الرسم للـ VR
+              self.renderer.setAnimationLoop(function() {
+                self.vrAnimate();
+              });
+              
+              session.addEventListener('end', function() {
+                self.exitVR();
+              });
+              
+              console.log('VR Mode: Entered');
+              
+            }).catch((error) => {
+              console.log('VR Error:', error);
+            });
+          },
+          
+          exitVR: function() {
+            if (this.vrSession) {
+              this.vrSession.end();
+              this.vrSession = null;
+            }
+            
+            this.renderer.xr.enabled = false;
+            this.renderer.setAnimationLoop(null);
+            
+            // العودة للحلقة العادية
+            this.animate();
+            
+            console.log('VR Mode: Exited');
+          },
+          
+          enterAR: function() {
+            if (!this.arSupported) {
+              console.log('AR not supported');
+              return;
+            }
+            
+            const self = this;
+            
+            navigator.xr.requestSession('immersive-ar', {
+              requiredFeatures: ['local-floor'],
+              optionalFeatures: ['dom-overlay', 'light-estimation', 'hit-test']
+            }).then((session) => {
+              self.arSession = session;
+              
+              // إعداد WebGL للـ AR
+              self.renderer.xr.enabled = true;
+              self.renderer.xr.setSession(session);
+              
+              // جعل الخلفية شفافة للـ AR
+              self.renderer.setClearColor(0x000000, 0);
+              
+              // تحديث حلقة الرسم للـ AR
+              self.renderer.setAnimationLoop(function() {
+                self.arAnimate();
+              });
+              
+              session.addEventListener('end', function() {
+                self.exitAR();
+              });
+              
+              console.log('AR Mode: Entered');
+              
+            }).catch((error) => {
+              console.log('AR Error:', error);
+            });
+          },
+          
+          exitAR: function() {
+            if (this.arSession) {
+              this.arSession.end();
+              this.arSession = null;
+            }
+            
+            this.renderer.xr.enabled = false;
+            this.renderer.setAnimationLoop(null);
+            
+            // استعادة الخلفية العادية
+            this.renderer.setClearColor(0x000000, 1);
+            
+            // العودة للحلقة العادية
+            this.animate();
+            
+            console.log('AR Mode: Exited');
+          },
+          
+          arAnimate: function() {
+            // حلقة الرسم الخاصة بالـ AR
+            this.update();
+            this.updateSpatialAudio();
+            this.updateQualityInfo();
+            
+            if (this.frameCount % 100 === 0) {
+              this.optimizePerformance();
+            }
+            
+            if (this.renderer && this.scene && this.camera) {
+              this.renderer.render(this.scene, this.camera);
+            }
+          },
+          
+          vrAnimate: function() {
+            // حلقة الرسم الخاصة بالـ VR
+            this.update();
+            this.updateSpatialAudio();
+            this.updateQualityInfo();
+            
+            if (this.frameCount % 100 === 0) {
+              this.optimizePerformance();
+            }
+            
+            if (this.renderer && this.scene && this.camera) {
+              this.renderer.render(this.scene, this.camera);
             }
           },
           
