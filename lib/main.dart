@@ -158,11 +158,24 @@ class _Video360ViewerPageState extends State<Video360ViewerPage> {
             this.scene = new THREE.Scene();
             this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1100);
             
-            // إنشاء الرندر
-            this.renderer = new THREE.WebGLRenderer({ antialias: true });
+            // إنشاء الرندر مع تحسينات الجودة
+            this.renderer = new THREE.WebGLRenderer({ 
+              antialias: true,
+              alpha: true,
+              powerPreference: 'high-performance',
+              stencil: false,
+              depth: true,
+              logarithmicDepthBuffer: true
+            });
             this.renderer.setSize(window.innerWidth, window.innerHeight);
-            this.renderer.setPixelRatio(window.devicePixelRatio);
+            this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // تحسين الأداء
             this.renderer.setClearColor(0x000000);
+            
+            // تفعيل تحسينات الرسومات
+            this.renderer.shadowMap.enabled = false; // توفير الأداء
+            this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+            this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            this.renderer.toneMappingExposure = 1.0;
             
             // إضافة الكانفاس للعارض
             viewerArea.appendChild(this.renderer.domElement);
@@ -215,18 +228,31 @@ class _Video360ViewerPageState extends State<Video360ViewerPage> {
           },
           
           createVideoSphere: function() {
-            // إنشاء texture من الفيديو
+            // إنشاء texture من الفيديو مع تحسينات الجودة وإصلاح الانقلاب
             this.videoTexture = new THREE.VideoTexture(this.video);
             this.videoTexture.minFilter = THREE.LinearFilter;
             this.videoTexture.magFilter = THREE.LinearFilter;
+            this.videoTexture.format = THREE.RGBFormat;
+            this.videoTexture.generateMipmaps = false;
+            this.videoTexture.flipY = false; // منع الانقلاب الرأسي
+            this.videoTexture.colorSpace = THREE.SRGBColorSpace;
             
-            // إنشاء الكرة
-            const geometry = new THREE.SphereGeometry(500, 60, 40);
-            geometry.scale(-1, 1, 1);
+            // إصلاح الانقلاب إذا لزم الأمر
+            this.videoTexture.wrapS = THREE.RepeatWrapping;
+            this.videoTexture.wrapT = THREE.RepeatWrapping;
             
+            // إنشاء الكرة بدقة أعلى مع إصلاح الانقلاب
+            const geometry = new THREE.SphereGeometry(500, 128, 64); // زيادة الدقة
+            geometry.scale(-1, 1, 1); // انعكاس أفقي للداخل
+            
+            // تحسين المادة
             const material = new THREE.MeshBasicMaterial({ 
               map: this.videoTexture,
-              side: THREE.DoubleSide
+              side: THREE.DoubleSide,
+              transparent: false,
+              alphaTest: 0,
+              depthWrite: true,
+              depthTest: true
             });
             
             // إزالة الكرة السابقة إن وجدت
@@ -253,6 +279,9 @@ class _Video360ViewerPageState extends State<Video360ViewerPage> {
             controls.style.display = 'flex';
             controls.style.gap = '10px';
             controls.style.zIndex = '3000';
+            
+            // إضافة مؤشر الجودة
+            this.createQualityIndicator();
             
             // زر التشغيل/الإيقاف
             const playBtn = document.createElement('button');
@@ -308,11 +337,200 @@ class _Video360ViewerPageState extends State<Video360ViewerPage> {
               }
             };
             
+            // زر جودة العرض
+            const qualityBtn = document.createElement('button');
+            qualityBtn.innerHTML = '🎯';
+            qualityBtn.title = 'تبديل جودة العرض';
+            qualityBtn.style.background = 'none';
+            qualityBtn.style.border = 'none';
+            qualityBtn.style.color = 'white';
+            qualityBtn.style.fontSize = '16px';
+            qualityBtn.style.cursor = 'pointer';
+            qualityBtn.style.padding = '5px';
+            
+            let qualityMode = 'high'; // high, medium, low
+            qualityBtn.onclick = function() {
+              if (qualityMode === 'high') {
+                qualityMode = 'medium';
+                self.setQualityMode('medium');
+                qualityBtn.innerHTML = '🎯';
+                qualityBtn.title = 'جودة متوسطة';
+              } else if (qualityMode === 'medium') {
+                qualityMode = 'low';
+                self.setQualityMode('low');
+                qualityBtn.innerHTML = '⚡';
+                qualityBtn.title = 'جودة منخفضة - أداء سريع';
+              } else {
+                qualityMode = 'high';
+                self.setQualityMode('high');
+                qualityBtn.innerHTML = '💎';
+                qualityBtn.title = 'جودة عالية';
+              }
+            };
+            
+            // زر تصحيح الاتجاه
+            const flipBtn = document.createElement('button');
+            flipBtn.innerHTML = '🔄';
+            flipBtn.title = 'تصحيح اتجاه الفيديو';
+            flipBtn.style.background = 'none';
+            flipBtn.style.border = 'none';
+            flipBtn.style.color = 'white';
+            flipBtn.style.fontSize = '16px';
+            flipBtn.style.cursor = 'pointer';
+            flipBtn.style.padding = '5px';
+            
+            let flipState = 0; // 0: عادي, 1: انقلاب أفقي, 2: انقلاب رأسي, 3: انقلاب كامل
+            flipBtn.onclick = function() {
+              flipState = (flipState + 1) % 4;
+              self.flipVideo(flipState);
+              
+              const titles = [
+                'اتجاه عادي',
+                'انقلاب أفقي',
+                'انقلاب رأسي', 
+                'انقلاب كامل'
+              ];
+              flipBtn.title = titles[flipState];
+            };
+            
             controls.appendChild(playBtn);
             controls.appendChild(muteBtn);
+            controls.appendChild(qualityBtn);
+            controls.appendChild(flipBtn);
             controls.appendChild(fullscreenBtn);
             
             document.body.appendChild(controls);
+          },
+          
+          createQualityIndicator: function() {
+            const qualityPanel = document.createElement('div');
+            qualityPanel.id = 'quality-panel';
+            qualityPanel.style.position = 'fixed';
+            qualityPanel.style.top = '20px';
+            qualityPanel.style.right = '20px';
+            qualityPanel.style.backgroundColor = 'rgba(0,0,0,0.8)';
+            qualityPanel.style.color = 'white';
+            qualityPanel.style.padding = '10px 15px';
+            qualityPanel.style.borderRadius = '10px';
+            qualityPanel.style.fontSize = '12px';
+            qualityPanel.style.fontFamily = 'monospace';
+            qualityPanel.style.zIndex = '3000';
+            qualityPanel.style.minWidth = '200px';
+            
+            const title = document.createElement('div');
+            title.textContent = '📊 معلومات الجودة';
+            title.style.fontWeight = 'bold';
+            title.style.marginBottom = '5px';
+            title.style.color = '#2196F3';
+            
+            const info = document.createElement('div');
+            info.id = 'quality-info';
+            
+            qualityPanel.appendChild(title);
+            qualityPanel.appendChild(info);
+            document.body.appendChild(qualityPanel);
+            
+            // تحديث المعلومات كل ثانية
+            const self = this;
+            setInterval(function() {
+              self.updateQualityInfo();
+            }, 1000);
+          },
+          
+          updateQualityInfo: function() {
+            const infoDiv = document.getElementById('quality-info');
+            if (!infoDiv || !this.video || !this.renderer) return;
+            
+            const pixelRatio = this.renderer.getPixelRatio();
+            const size = this.renderer.getSize(new THREE.Vector2());
+            const videoWidth = this.video.videoWidth || 0;
+            const videoHeight = this.video.videoHeight || 0;
+            const fps = this.video.getVideoPlaybackQuality ? 
+                      this.video.getVideoPlaybackQuality().totalVideoFrames : 'N/A';
+            
+            infoDiv.innerHTML = 
+              'الدقة: ' + videoWidth + 'x' + videoHeight + '<br>' +
+              'الشاشة: ' + Math.round(size.x) + 'x' + Math.round(size.y) + '<br>' +
+              'Pixel Ratio: ' + pixelRatio.toFixed(1) + '<br>' +
+              'الإطارات: ' + (typeof fps === 'number' ? fps : fps) + '<br>' +
+              'المعالج: ' + (this.renderer.capabilities.isWebGL2 ? 'WebGL2' : 'WebGL1');
+          },
+          
+          setQualityMode: function(mode) {
+            if (!this.sphere || !this.renderer) return;
+            
+            console.log('Switching to quality mode:', mode);
+            
+            // إعادة إنشاء الكرة بدقة مختلفة
+            this.scene.remove(this.sphere);
+            
+            let segments, rings, pixelRatio;
+            
+            switch(mode) {
+              case 'high':
+                segments = 128;
+                rings = 64;
+                pixelRatio = Math.min(window.devicePixelRatio, 2);
+                break;
+              case 'medium':
+                segments = 64;
+                rings = 32;
+                pixelRatio = Math.min(window.devicePixelRatio, 1.5);
+                break;
+              case 'low':
+                segments = 32;
+                rings = 16;
+                pixelRatio = 1;
+                break;
+            }
+            
+            // تحديث pixel ratio
+            this.renderer.setPixelRatio(pixelRatio);
+            
+            // إنشاء كرة جديدة مع إصلاح الانقلاب
+            const geometry = new THREE.SphereGeometry(500, segments, rings);
+            geometry.scale(-1, 1, 1); // الإعداد الافتراضي
+            
+            const material = new THREE.MeshBasicMaterial({ 
+              map: this.videoTexture,
+              side: THREE.DoubleSide,
+              transparent: false,
+              alphaTest: 0,
+              depthWrite: true,
+              depthTest: true
+            });
+            
+            this.sphere = new THREE.Mesh(geometry, material);
+            this.scene.add(this.sphere);
+            
+            console.log('Quality mode changed to:', mode, 'Segments:', segments, 'Rings:', rings);
+          },
+          
+          flipVideo: function(flipState) {
+            if (!this.sphere) return;
+            
+            console.log('Flipping video to state:', flipState);
+            
+            // إعادة تعيين التحويلات
+            this.sphere.scale.set(1, 1, 1);
+            this.sphere.rotation.set(0, 0, 0);
+            
+            switch(flipState) {
+              case 0: // عادي
+                this.sphere.scale.set(-1, 1, 1);
+                break;
+              case 1: // انقلاب أفقي
+                this.sphere.scale.set(1, 1, 1);
+                break;
+              case 2: // انقلاب رأسي
+                this.sphere.scale.set(-1, -1, 1);
+                break;
+              case 3: // انقلاب كامل
+                this.sphere.scale.set(1, -1, 1);
+                break;
+            }
+            
+            console.log('Video flipped to state:', flipState);
           },
           
           showPlayButton: function() {
