@@ -158,24 +158,54 @@ class _Video360ViewerPageState extends State<Video360ViewerPage> {
             this.scene = new THREE.Scene();
             this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1100);
             
-            // إنشاء الرندر مع تحسينات الجودة
+            // إنشاء الرندر مع تحسينات متقدمة للدقة العالية
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('webgl2') || canvas.getContext('webgl');
+            const isWebGL2 = !!canvas.getContext('webgl2');
+            
             this.renderer = new THREE.WebGLRenderer({ 
+              canvas: canvas,
+              context: context,
               antialias: true,
               alpha: true,
               powerPreference: 'high-performance',
               stencil: false,
               depth: true,
-              logarithmicDepthBuffer: true
+              logarithmicDepthBuffer: true,
+              precision: 'highp', // دقة عالية للحسابات
+              preserveDrawingBuffer: false // تحسين الأداء
             });
+            
+            // تحسين الأداء حسب قوة الجهاز
+            const maxTextureSize = this.renderer.capabilities.maxTextureSize;
+            const isHighEndDevice = maxTextureSize >= 8192;
+            
             this.renderer.setSize(window.innerWidth, window.innerHeight);
-            this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // تحسين الأداء
+            
+            // تحسين pixel ratio للدقة العالية
+            let pixelRatio;
+            if (isHighEndDevice && window.devicePixelRatio > 1) {
+              pixelRatio = Math.min(window.devicePixelRatio, 3); // دعم أفضل للشاشات عالية الدقة
+            } else {
+              pixelRatio = Math.min(window.devicePixelRatio, 2);
+            }
+            this.renderer.setPixelRatio(pixelRatio);
             this.renderer.setClearColor(0x000000);
             
-            // تفعيل تحسينات الرسومات
+            // تفعيل تحسينات الرسومات المتقدمة
             this.renderer.shadowMap.enabled = false; // توفير الأداء
             this.renderer.outputColorSpace = THREE.SRGBColorSpace;
             this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
             this.renderer.toneMappingExposure = 1.0;
+            
+            // تحسينات إضافية للأداء
+            this.renderer.info.autoReset = false; // تحسين الذاكرة
+            this.renderer.sortObjects = true; // تحسين الرسم
+            
+            console.log('Renderer initialized:', 
+                       isWebGL2 ? 'WebGL2' : 'WebGL1',
+                       'Max texture size:', maxTextureSize,
+                       'Pixel ratio:', pixelRatio);
             
             // إضافة الكانفاس للعارض
             viewerArea.appendChild(this.renderer.domElement);
@@ -228,22 +258,60 @@ class _Video360ViewerPageState extends State<Video360ViewerPage> {
           },
           
           createVideoSphere: function() {
-            // إنشاء texture من الفيديو مع تحسينات الجودة وإصلاح الانقلاب
+            // إنشاء texture من الفيديو مع دعم 4K وتحسينات الجودة
             this.videoTexture = new THREE.VideoTexture(this.video);
-            this.videoTexture.minFilter = THREE.LinearFilter;
-            this.videoTexture.magFilter = THREE.LinearFilter;
-            this.videoTexture.format = THREE.RGBFormat;
-            this.videoTexture.generateMipmaps = false;
+            
+            // تحديد جودة الـ texture حسب دقة الفيديو
+            const videoWidth = this.video.videoWidth || 1920;
+            const videoHeight = this.video.videoHeight || 1080;
+            const is4K = videoWidth >= 3840 || videoHeight >= 2160;
+            const is8K = videoWidth >= 7680 || videoHeight >= 4320;
+            
+            // إعدادات texture محسنة للدقة العالية
+            if (is8K) {
+              this.videoTexture.minFilter = THREE.LinearFilter;
+              this.videoTexture.magFilter = THREE.LinearFilter;
+              this.videoTexture.format = THREE.RGBAFormat; // دعم أفضل للـ 8K
+            } else if (is4K) {
+              this.videoTexture.minFilter = THREE.LinearMipmapLinearFilter;
+              this.videoTexture.magFilter = THREE.LinearFilter;
+              this.videoTexture.format = THREE.RGBFormat;
+              this.videoTexture.generateMipmaps = true; // تحسين للـ 4K
+            } else {
+              this.videoTexture.minFilter = THREE.LinearFilter;
+              this.videoTexture.magFilter = THREE.LinearFilter;
+              this.videoTexture.format = THREE.RGBFormat;
+              this.videoTexture.generateMipmaps = false;
+            }
+            
             this.videoTexture.flipY = false; // منع الانقلاب الرأسي
             this.videoTexture.colorSpace = THREE.SRGBColorSpace;
-            
-            // إصلاح الانقلاب إذا لزم الأمر
             this.videoTexture.wrapS = THREE.RepeatWrapping;
             this.videoTexture.wrapT = THREE.RepeatWrapping;
             
-            // إنشاء الكرة بدقة أعلى مع إصلاح الانقلاب
-            const geometry = new THREE.SphereGeometry(500, 128, 64); // زيادة الدقة
+            // تحسين الأداء للدقة العالية
+            this.videoTexture.needsUpdate = true;
+            
+            console.log('Video resolution detected:', videoWidth + 'x' + videoHeight, 
+                       is8K ? '(8K)' : is4K ? '(4K)' : '(HD)');
+            
+            // إنشاء الكرة بدقة تتناسب مع دقة الفيديو
+            let segments, rings;
+            if (is8K) {
+              segments = 256; // دقة فائقة للـ 8K
+              rings = 128;
+            } else if (is4K) {
+              segments = 192; // دقة عالية للـ 4K
+              rings = 96;
+            } else {
+              segments = 128; // دقة عادية للـ HD
+              rings = 64;
+            }
+            
+            const geometry = new THREE.SphereGeometry(500, segments, rings);
             geometry.scale(-1, 1, 1); // انعكاس أفقي للداخل
+            
+            console.log('Sphere created with segments:', segments, 'rings:', rings);
             
             // تحسين المادة
             const material = new THREE.MeshBasicMaterial({ 
@@ -448,12 +516,59 @@ class _Video360ViewerPageState extends State<Video360ViewerPage> {
             const fps = this.video.getVideoPlaybackQuality ? 
                       this.video.getVideoPlaybackQuality().totalVideoFrames : 'N/A';
             
+            // تحديد نوع الدقة
+            const is8K = videoWidth >= 7680 || videoHeight >= 4320;
+            const is4K = videoWidth >= 3840 || videoHeight >= 2160;
+            const isHD = videoWidth >= 1920 || videoHeight >= 1080;
+            
+            let qualityBadge = '';
+            if (is8K) qualityBadge = ' 🏆8K';
+            else if (is4K) qualityBadge = ' 💎4K';
+            else if (isHD) qualityBadge = ' ⭐HD';
+            else qualityBadge = ' 📺SD';
+            
+            // معلومات الأداء
+            const memoryInfo = this.renderer.info.memory;
+            const renderInfo = this.renderer.info.render;
+            
             infoDiv.innerHTML = 
-              'الدقة: ' + videoWidth + 'x' + videoHeight + '<br>' +
+              'الدقة: ' + videoWidth + 'x' + videoHeight + qualityBadge + '<br>' +
               'الشاشة: ' + Math.round(size.x) + 'x' + Math.round(size.y) + '<br>' +
               'Pixel Ratio: ' + pixelRatio.toFixed(1) + '<br>' +
               'الإطارات: ' + (typeof fps === 'number' ? fps : fps) + '<br>' +
-              'المعالج: ' + (this.renderer.capabilities.isWebGL2 ? 'WebGL2' : 'WebGL1');
+              'المعالج: ' + (this.renderer.capabilities.isWebGL2 ? 'WebGL2' : 'WebGL1') + '<br>' +
+              'الذاكرة: ' + (memoryInfo.textures || 0) + ' textures<br>' +
+              'FPS: ' + Math.round(1000 / (performance.now() - (this.lastFrameTime || performance.now())));
+            
+            this.lastFrameTime = performance.now();
+          },
+          
+          optimizePerformance: function() {
+            if (!this.renderer) return;
+            
+            // تنظيف الذاكرة
+            if (this.renderer.info) {
+              this.renderer.info.reset();
+            }
+            
+            // تحسين texture للدقة العالية
+            if (this.videoTexture && this.video) {
+              const videoWidth = this.video.videoWidth || 0;
+              const videoHeight = this.video.videoHeight || 0;
+              const is4KOrHigher = videoWidth >= 3840 || videoHeight >= 2160;
+              
+              if (is4KOrHigher && this.frameCount % 300 === 0) {
+                // إعادة تحديث texture للفيديوهات عالية الدقة
+                this.videoTexture.needsUpdate = true;
+              }
+            }
+            
+            // تحسين الكاميرا للأداء الأمثل
+            if (this.camera && this.frameCount % 500 === 0) {
+              this.camera.updateProjectionMatrix();
+            }
+            
+            console.log('Performance optimization at frame:', this.frameCount);
           },
           
           setQualityMode: function(mode) {
@@ -615,6 +730,14 @@ class _Video360ViewerPageState extends State<Video360ViewerPage> {
             });
             
             this.update();
+            
+            // تحسين الأداء - تنظيف الذاكرة كل 100 إطار
+            if (!this.frameCount) this.frameCount = 0;
+            this.frameCount++;
+            
+            if (this.frameCount % 100 === 0) {
+              this.optimizePerformance();
+            }
             if (this.renderer && this.scene && this.camera) {
               this.renderer.render(this.scene, this.camera);
             }
